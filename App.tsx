@@ -35,7 +35,7 @@ export default function App() {
     Alert.alert('Registrado');
     setIsLoggedIn(true); 
   };
-
+// Hijueputa vida también
   const handleLogout = () => {
     setIsLoggedIn(false);
     setIsRegistering(false);
