@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
-  Alert,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
 import { crearOActualizarCliente } from '../db/clienteRepo';
+import { mostrarAlerta } from '../utils/alerta';
 
 /**
  * HU-03: "Si es primer ingreso con perfil cliente, debe llenar los datos
@@ -27,7 +28,7 @@ export default function CompletarPerfilScreen() {
     if (!usuario) return;
 
     if (!nombre.trim() || !apellido.trim() || !correo.trim()) {
-      Alert.alert('Datos incompletos', 'Completa nombre, apellido y correo.');
+      mostrarAlerta('Datos incompletos');
       return;
     }
 
@@ -36,7 +37,7 @@ export default function CompletarPerfilScreen() {
       await crearOActualizarCliente(usuario.Id, nombre.trim(), apellido.trim(), correo.trim());
       await refrescarCliente();
     } catch (e: any) {
-      Alert.alert('Error', e?.message ?? 'No se pudo guardar tu información.');
+      mostrarAlerta('Error', e?.message ?? 'No se pudo guardar tu información.');
     } finally {
       setGuardando(false);
     }
@@ -44,35 +45,56 @@ export default function CompletarPerfilScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.card}>
-        <Text style={styles.title}>Completa tus datos</Text>
-        <Text style={styles.subtitle}>
-          Antes de continuar necesitamos tu información personal.
-        </Text>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.card}>
+          <Text style={styles.title}>Completa tus datos</Text>
 
-        <Text style={styles.inputLabel}>Nombre</Text>
-        <TextInput style={styles.input} value={nombre} onChangeText={setNombre} />
+          <View style={styles.filaDosColumnas}>
+            <View style={styles.columna}>
+              <Text style={styles.label}>Nombre</Text>
+              <TextInput
+                style={styles.input}
+                value={nombre}
+                onChangeText={setNombre}
+              />
+            </View>
+            <View style={styles.columna}>
+              <Text style={styles.label}>Apellido</Text>
+              <TextInput
+                style={styles.input}
+                value={apellido}
+                onChangeText={setApellido}
+              />
+            </View>
+          </View>
 
-        <Text style={styles.inputLabel}>Apellido</Text>
-        <TextInput style={styles.input} value={apellido} onChangeText={setApellido} />
+          <Text style={styles.label}>Correo electrónico</Text>
+          <TextInput
+            style={styles.input}
+            value={correo}
+            onChangeText={setCorreo}
+            keyboardType="email-address"
+            autoCapitalize="none"
+          />
 
-        <Text style={styles.inputLabel}>Correo electrónico</Text>
-        <TextInput
-          style={styles.input}
-          value={correo}
-          onChangeText={setCorreo}
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
+          <TouchableOpacity
+            style={[styles.button, guardando && styles.buttonOff]}
+            onPress={handleGuardar}
+            disabled={guardando}
+          >
+            <Text style={styles.buttonText}>
+              {guardando ? 'Guardando...' : 'Guardar y continuar'}
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity style={styles.button} onPress={handleGuardar} disabled={guardando}>
-          <Text style={styles.buttonText}>{guardando ? 'Guardando...' : 'Guardar y continuar'}</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.link} onPress={logout}>
-          <Text style={styles.linkText}>Cerrar sesión</Text>
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity style={styles.link} onPress={logout}>
+            <Text style={styles.linkText}>Cerrar sesión</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -81,70 +103,88 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F0F4F8',
-    alignItems: 'center',
+  },
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: 'center',
     padding: 20,
   },
   card: {
-    backgroundColor: '#FFFFFF',
     width: '100%',
-    padding: 30,
+    maxWidth: 420,
+    alignSelf: 'center',
+    backgroundColor: '#FFFFFF',
     borderRadius: 20,
-    alignItems: 'center',
+    padding: 28,
+    borderWidth: 1,
+    borderColor: '#EBF1F6',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 4,
   },
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333333',
-    marginBottom: 6,
+    fontWeight: '700',
+    color: '#1A202C',
+    textAlign: 'center',
   },
   subtitle: {
     fontSize: 14,
-    color: '#666666',
-    marginBottom: 20,
+    color: '#718096',
     textAlign: 'center',
+    marginTop: 6,
+    marginBottom: 24,
   },
-  inputLabel: {
-    width: '100%',
-    textAlign: 'left',
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#555555',
+  filaDosColumnas: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  columna: {
+    flex: 1,
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#4A5568',
     marginBottom: 5,
-    marginLeft: 5,
   },
   input: {
-    width: '100%',
-    height: 55,
-    backgroundColor: '#F9F9F9',
-    borderRadius: 12,
-    paddingHorizontal: 15,
-    marginBottom: 20,
+    height: 48,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#EAEAEA',
-    fontSize: 16,
-    color: '#333',
+    borderColor: '#E2E8F0',
+    fontSize: 15,
+    color: '#2D3748',
   },
   button: {
-    width: '100%',
-    height: 55,
-    backgroundColor: '#ff95ec',
-    borderRadius: 12,
+    height: 50,
+    backgroundColor: '#ff80ed',
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 4,
+  },
+  buttonOff: {
+    opacity: 0.6,
   },
   buttonText: {
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: 15,
+    fontWeight: '700',
   },
   link: {
-    marginTop: 16,
-    padding: 10,
+    alignSelf: 'center',
+    marginTop: 18,
+    padding: 6,
   },
   linkText: {
     color: '#b90d2a',
     fontSize: 14,
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
 });

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
-  Alert,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { useAuth } from '../context/AuthContext';
+import { mostrarAlerta } from '../utils/alerta';
 
 export default function LoginScreen({ navigation }: any) {
   const { login, cargando } = useAuth();
@@ -20,48 +21,58 @@ export default function LoginScreen({ navigation }: any) {
     const claveLimpia = password.trim();
 
     if (correoLimpio === '' || claveLimpia === '') {
-      Alert.alert('Datos incompletos', 'Ingresa tu correo y tu contraseña.');
+      mostrarAlerta('Datos incompletos', 'Ingresa tu correo y tu contraseña.');
       return;
     }
 
     const resultado = await login(correoLimpio, claveLimpia);
     if (!resultado.ok) {
-      Alert.alert('No se pudo iniciar sesión', resultado.mensaje);
+      mostrarAlerta('No se pudo iniciar sesión', resultado.mensaje);
     }
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.card}>
-        <Text style={styles.title}>Iniciar Sesión</Text>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.card}>
+          <Text style={styles.title}>Iniciar sesión</Text>
 
-        <Text style={styles.inputLabel}>Correo electrónico</Text>
-        <TextInput
-          style={styles.input}
-          value={correo}
-          onChangeText={setCorreo}
-          keyboardType="email-address"
-          autoCapitalize="none"
-        />
+          <Text style={styles.label}>Correo electrónico</Text>
+          <TextInput
+            style={styles.input}
+            value={correo}
+            onChangeText={setCorreo}
+            keyboardType="email-address"
+            autoCapitalize="none"
+          />
 
-        <Text style={styles.inputLabel}>Contraseña</Text>
-        <TextInput
-          style={styles.input}
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-        />
+          <Text style={styles.label}>Contraseña</Text>
+          <TextInput
+            style={styles.input}
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            onSubmitEditing={handleLogin}
+          />
 
-        <TouchableOpacity style={styles.loginButton} onPress={handleLogin} disabled={cargando}>
-          <Text style={styles.buttonText}>{cargando ? 'Ingresando...' : 'Ingresar'}</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.button, cargando && styles.buttonOff]}
+            onPress={handleLogin}
+            disabled={cargando}
+          >
+            <Text style={styles.buttonText}>{cargando ? 'Ingresando...' : 'Ingresar'}</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity style={styles.switchButton} onPress={() => navigation.navigate('Register')}>
-          <Text style={styles.switchButtonText}>¿No tienes cuenta? Regístrate</Text>
-        </TouchableOpacity>
+          <TouchableOpacity style={styles.link} onPress={() => navigation.navigate('Register')}>
+            <Text style={styles.linkText}>Regístrate</Text>
+          </TouchableOpacity>
 
-        <Text style={styles.hint}>Cuenta admin de prueba: admin@tienda.com / admin123</Text>
-      </View>
+        
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -70,76 +81,92 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F0F4F8',
-    alignItems: 'center',
+  },
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: 'center',
     padding: 20,
   },
   card: {
-    backgroundColor: '#FFFFFF',
     width: '100%',
-    padding: 30,
+    maxWidth: 420,
+    alignSelf: 'center',
+    backgroundColor: '#FFFFFF',
     borderRadius: 20,
+    padding: 28,
+    borderWidth: 1,
+    borderColor: '#EBF1F6',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 5,
-    alignItems: 'center',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 4,
   },
   title: {
     fontSize: 26,
-    fontWeight: 'bold',
-    color: '#333333',
-    marginBottom: 20,
+    fontWeight: '700',
+    color: '#1A202C',
+    textAlign: 'center',
   },
-  inputLabel: {
-    width: '100%',
-    textAlign: 'left',
+  subtitle: {
     fontSize: 14,
-    fontWeight: 'bold',
-    color: '#555555',
+    color: '#718096',
+    textAlign: 'center',
+    marginTop: 6,
+    marginBottom: 24,
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#4A5568',
     marginBottom: 5,
-    marginLeft: 5,
   },
   input: {
-    width: '100%',
-    height: 55,
-    backgroundColor: '#F9F9F9',
-    borderRadius: 12,
-    paddingHorizontal: 15,
-    marginBottom: 20,
+    height: 48,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#EAEAEA',
-    fontSize: 16,
-    color: '#333',
+    borderColor: '#E2E8F0',
+    fontSize: 15,
+    color: '#2D3748',
   },
-  loginButton: {
-    width: '100%',
-    height: 55,
-    backgroundColor: '#ff95ec',
-    borderRadius: 12,
+  button: {
+    height: 50,
+    backgroundColor: '#ff80ed',
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 5,
+    marginTop: 4,
+  },
+  buttonOff: {
+    opacity: 0.6,
   },
   buttonText: {
     color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: 15,
+    fontWeight: '700',
   },
-  switchButton: {
-    marginTop: 20,
-    padding: 10,
+  link: {
+    alignSelf: 'center',
+    marginTop: 18,
+    padding: 6,
   },
-  switchButtonText: {
+  linkText: {
     color: '#b90d2a',
     fontSize: 14,
-    fontWeight: 'bold',
+    fontWeight: '700',
+  },
+  hintBox: {
+    backgroundColor: '#FFF5FD',
+    borderRadius: 10,
+    padding: 10,
+    marginTop: 14,
   },
   hint: {
-    marginTop: 15,
     fontSize: 12,
-    color: '#999999',
+    color: '#8A4B84',
     textAlign: 'center',
   },
 });

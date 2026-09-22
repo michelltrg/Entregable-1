@@ -9,19 +9,18 @@ export default function HomeScreen() {
 
   return (
     <Screen title="Inicio" current="Home">
-      <Text style={styles.texto}>Hola, {nombreVisible} 👋</Text>
+      <Text style={styles.texto}>Correo: {nombreVisible} </Text>
       <Text style={styles.texto}>Rol: {usuario?.Rol}</Text>
 
       {usuario?.Rol === 'Cliente' && (
         <Text style={styles.ayuda}>
-          Usa el menú superior para ver tu perfil o realizar una compra.
+          Bienvenidos
         </Text>
       )}
 
       {usuario?.Rol === 'Admin' && (
         <Text style={styles.ayuda}>
-          Usa el menú superior para aprobar usuarios, ver clientes y gestionar el catálogo de
-          productos.
+          Bienvenido
         </Text>
       )}
     </Screen>

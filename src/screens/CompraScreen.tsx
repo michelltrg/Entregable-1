@@ -1,24 +1,18 @@
 import React, { useCallback, useState } from 'react';
-import {
-  Alert,
-  FlatList,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Screen from '../components/Screen';
 import { useAuth } from '../context/AuthContext';
 import { listarProductos } from '../db/productoRepo';
 import { crearCompra, ItemCompra } from '../db/compraRepo';
 import { Producto } from '../types';
+import { mostrarAlerta } from '../utils/alerta';
 
 export default function CompraScreen() {
   const { cliente } = useAuth();
   const [productos, setProductos] = useState<Producto[]>([]);
-  const [cantidades, setCantidades] = useState<Record<number, string>>({});
+  // Cantidad elegida por producto: { [idProducto]: cantidad }
+  const [cantidades, setCantidades] = useState<Record<number, number>>({});
   const [procesando, setProcesando] = useState(false);
 
   const cargar = useCallback(async () => {
@@ -34,42 +28,36 @@ export default function CompraScreen() {
   // HU-05: solo se pueden seleccionar productos con Stock > 0.
   const disponibles = productos.filter((p) => p.Stock > 0);
 
-  const cambiarCantidad = (id: number, valor: string) => {
-    setCantidades((prev) => ({ ...prev, [id]: valor }));
+  // Suma o resta una unidad, sin bajar de 0 ni pasar del stock (HU-05).
+  const cambiarCantidad = (producto: Producto, delta: number) => {
+    setCantidades((prev) => {
+      const actual = prev[producto.Id] ?? 0;
+      const nueva = Math.min(Math.max(actual + delta, 0), producto.Stock);
+      return { ...prev, [producto.Id]: nueva };
+    });
   };
 
-  const construirItems = (): ItemCompra[] => {
-    const items: ItemCompra[] = [];
-    for (const p of disponibles) {
-      const cantidad = Number(cantidades[p.Id]);
-      if (cantidades[p.Id] && cantidad > 0) {
-        items.push({ producto: p, cantidad });
-      }
-    }
-    return items;
-  };
+  const items: ItemCompra[] = disponibles
+    .filter((p) => (cantidades[p.Id] ?? 0) > 0)
+    .map((p) => ({ producto: p, cantidad: cantidades[p.Id] }));
 
-  const items = construirItems();
   const total = items.reduce((acc, it) => acc + it.cantidad * it.producto.ValorUnitario, 0);
+  const totalUnidades = items.reduce((acc, it) => acc + it.cantidad, 0);
 
   const confirmarCompra = async () => {
     if (!cliente) {
-      Alert.alert('Perfil incompleto', 'Debes completar tus datos de cliente antes de comprar.');
+      mostrarAlerta('Perfil incompleto', 'Debes completar tus datos de cliente antes de comprar.');
       return;
     }
     if (items.length === 0) {
-      Alert.alert('Carrito vacío', 'Selecciona al menos un producto con una cantidad válida.');
+      mostrarAlerta('Carrito vacío', 'Agrega al menos un producto para continuar.');
       return;
     }
 
+    // Se revisa de nuevo por si el stock cambió mientras el cliente elegía.
     for (const item of items) {
-      if (!Number.isInteger(item.cantidad) || item.cantidad <= 0) {
-        Alert.alert('Cantidad inválida', `La cantidad de "${item.producto.Nombre}" debe ser un entero positivo.`);
-        return;
-      }
-      // HU-05: no permitir agregar una cantidad superior al stock existente.
       if (item.cantidad > item.producto.Stock) {
-        Alert.alert(
+        mostrarAlerta(
           'Stock insuficiente',
           `Solo hay ${item.producto.Stock} unidades disponibles de "${item.producto.Nombre}".`
         );
@@ -80,11 +68,14 @@ export default function CompraScreen() {
     setProcesando(true);
     try {
       const idEncabezado = await crearCompra(cliente.Id, items);
-      Alert.alert('Compra realizada', `Pedido #${idEncabezado} registrado por un total de $${total.toFixed(2)}.`);
+      mostrarAlerta(
+        'Compra realizada',
+        `Pedido #${idEncabezado} Total: ${total.toFixed(2)}.`
+      );
       setCantidades({});
       cargar();
     } catch (e: any) {
-      Alert.alert('No se pudo completar la compra', e?.message ?? 'Intenta nuevamente.');
+      mostrarAlerta('No se pudo completar la compra', e?.message ?? 'Intenta nuevamente.');
       cargar();
     } finally {
       setProcesando(false);
@@ -95,109 +86,298 @@ export default function CompraScreen() {
   if (productos.length === 0) {
     return (
       <Screen title="Comprar" current="Compra">
-        <Text style={styles.vacio}>
-          Aún no hay productos registrados en el catálogo. Vuelve más tarde.
-        </Text>
+        <View style={styles.pagina}>
+          <View style={styles.vacioCaja}>
+            <Text style={styles.vacioTitulo}>Catálogo vacío</Text>
+          </View>
+        </View>
       </Screen>
     );
   }
 
   return (
     <Screen title="Comprar" current="Compra">
-      <FlatList
-        data={disponibles}
-        keyExtractor={(item) => String(item.Id)}
-        ListEmptyComponent={<Text style={styles.vacio}>No hay productos con stock disponible.</Text>}
-        renderItem={({ item }) => (
-          <View style={styles.fila}>
-            <View style={styles.info}>
-              <Text style={styles.nombre}>{item.Nombre}</Text>
-              <Text style={styles.detalle}>{item.Descripcion}</Text>
-              <Text style={styles.detalle}>
-                ${item.ValorUnitario.toFixed(2)} · Stock: {item.Stock}
-              </Text>
+      <View style={styles.pagina}>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+          {disponibles.length === 0 ? (
+            <View style={styles.vacioCaja}>
+              <Text style={styles.vacioTitulo}>Sin stock</Text>
+              <Text style={styles.vacioTexto}>No hay productos disponibles.</Text>
             </View>
-            <TextInput
-              style={styles.cantidadInput}
-              keyboardType="numeric"
-              placeholder="0"
-              value={cantidades[item.Id] ?? ''}
-              onChangeText={(t) => cambiarCantidad(item.Id, t)}
-            />
-          </View>
-        )}
-      />
+          ) : (
+            disponibles.map((p) => {
+              const cantidad = cantidades[p.Id] ?? 0;
+              const enCarrito = cantidad > 0;
+              const alMaximo = cantidad >= p.Stock;
 
-      <View style={styles.resumen}>
-        <Text style={styles.total}>Total: ${total.toFixed(2)}</Text>
-        <TouchableOpacity style={styles.botonComprar} onPress={confirmarCompra} disabled={procesando}>
-          <Text style={styles.botonTexto}>{procesando ? 'Procesando...' : 'Confirmar compra'}</Text>
-        </TouchableOpacity>
+              return (
+                <View key={String(p.Id)} style={[styles.tarjeta, enCarrito && styles.tarjetaActiva]}>
+                  <View style={styles.info}>
+                    <Text style={styles.nombre}>{p.Nombre}</Text>
+                    {!!p.Descripcion && <Text style={styles.descripcion}>{p.Descripcion}</Text>}
+
+                    <View style={styles.filaPrecio}>
+                      <Text style={styles.precio}>${p.ValorUnitario.toFixed(2)}</Text>
+                      <View style={styles.badgeStock}>
+                        <Text style={styles.textoStock}>Stock: {p.Stock}</Text>
+                      </View>
+                    </View>
+
+                    {enCarrito && (
+                      <Text style={styles.subtotal}>
+                        Subtotal: ${(cantidad * p.ValorUnitario).toFixed(2)}
+                      </Text>
+                    )}
+                  </View>
+
+                  {/* Sin cantidad: botón Agregar. Con cantidad: contador − n + */}
+                  {!enCarrito ? (
+                    <TouchableOpacity
+                      style={styles.botonAgregar}
+                      onPress={() => cambiarCantidad(p, 1)}
+                    >
+                      <Text style={styles.botonAgregarTexto}>Agregar</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={styles.contador}>
+                      <TouchableOpacity
+                        style={styles.botonContador}
+                        onPress={() => cambiarCantidad(p, -1)}
+                      >
+                        <Text style={styles.botonContadorTexto}>−</Text>
+                      </TouchableOpacity>
+
+                      <Text style={styles.cantidad}>{cantidad}</Text>
+
+                      <TouchableOpacity
+                        style={[styles.botonContador, alMaximo && styles.botonContadorOff]}
+                        onPress={() => cambiarCantidad(p, 1)}
+                        disabled={alMaximo}
+                      >
+                        <Text style={styles.botonContadorTexto}>+</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              );
+            })
+          )}
+        </ScrollView>
+
+        {/* Resumen siempre visible al pie */}
+        <View style={styles.resumen}>
+          <View style={styles.filaResumen}>
+            <Text style={styles.resumenEtiqueta}>
+              {totalUnidades === 0
+                ? 'Tu carrito está vacío'
+                : `${totalUnidades} ${totalUnidades === 1 ? 'unidad' : 'unidades'}`}
+            </Text>
+            <Text style={styles.total}>Total: ${total.toFixed(2)}</Text>
+          </View>
+
+          <TouchableOpacity
+            style={[styles.botonComprar, (procesando || items.length === 0) && styles.botonComprarOff]}
+            onPress={confirmarCompra}
+            disabled={procesando || items.length === 0}
+          >
+            <Text style={styles.botonComprarTexto}>
+              {procesando ? 'Procesando...' : 'Confirmar compra'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  vacio: {
-    color: '#666666',
-    fontSize: 14,
+  // Mismo ancho máximo y centrado que las demás pantallas
+  pagina: {
+    flex: 1,
+    width: '100%',
+    maxWidth: 850,
+    alignSelf: 'center',
+    paddingHorizontal: 10,
   },
-  fila: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 10,
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingVertical: 10,
+  },
+
+  tarjeta: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#EBF1F6',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  // Se resalta la tarjeta cuando el producto ya está en el carrito
+  tarjetaActiva: {
+    borderColor: '#ff80ed',
+    borderWidth: 2,
+    backgroundColor: '#FFF5FD',
   },
   info: {
     flex: 1,
-    paddingRight: 10,
+    paddingRight: 12,
   },
   nombre: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '700',
-    color: '#333333',
+    color: '#1A202C',
   },
-  detalle: {
+  descripcion: {
     fontSize: 13,
-    color: '#666666',
+    color: '#718096',
     marginTop: 2,
   },
-  cantidadInput: {
-    width: 60,
-    height: 44,
-    backgroundColor: '#F9F9F9',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#EAEAEA',
-    textAlign: 'center',
-    fontSize: 15,
+  filaPrecio: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    gap: 10,
   },
-  resumen: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 14,
+  precio: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#2B6CB0',
+  },
+  badgeStock: {
+    backgroundColor: '#EDF2F7',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  textoStock: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#4A5568',
+  },
+  subtotal: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#B4189F',
     marginTop: 6,
   },
-  total: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: '#333333',
-    marginBottom: 10,
-    textAlign: 'right',
+
+  botonAgregar: {
+    backgroundColor: '#ff80ed',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
   },
-  botonComprar: {
-    height: 52,
-    backgroundColor: '#ff95ec',
+  botonAgregarTexto: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+
+  contador: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#F3B6EA',
+    padding: 4,
+  },
+  botonContador: {
+    width: 36,
+    height: 36,
+    borderRadius: 9,
+    backgroundColor: '#ff80ed',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  botonTexto: {
+  botonContadorOff: {
+    backgroundColor: '#E2E8F0',
+  },
+  botonContadorTexto: {
     color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '700',
+    lineHeight: 22,
+  },
+  cantidad: {
+    minWidth: 36,
+    textAlign: 'center',
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1A202C',
+  },
+
+  resumen: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 4,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#EBF1F6',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  filaResumen: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  resumenEtiqueta: {
+    fontSize: 13,
+    color: '#718096',
+    fontWeight: '600',
+  },
+  total: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1A202C',
+  },
+  botonComprar: {
+    backgroundColor: '#ff80ed',
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  botonComprarOff: {
+    opacity: 0.5,
+  },
+  botonComprarTexto: {
+    color: '#FFFFFF',
+    fontWeight: '700',
     fontSize: 15,
-    fontWeight: 'bold',
+  },
+
+  vacioCaja: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: '#EBF1F6',
+    alignItems: 'center',
+  },
+  vacioTitulo: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1A202C',
+    marginBottom: 6,
+  },
+  vacioTexto: {
+    fontSize: 13,
+    color: '#718096',
+    textAlign: 'center',
   },
 });
