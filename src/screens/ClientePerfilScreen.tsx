@@ -100,7 +100,6 @@ export default function ClientePerfilScreen() {
               onChangeText={setCorreo}
               keyboardType="email-address"
               autoCapitalize="none"
-              placeholder="correo@ejemplo.com"
             />
 
             <TouchableOpacity
@@ -137,7 +136,7 @@ const styles = StyleSheet.create({
   },
 
   tarjeta: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#ffffff',
     borderRadius: 16,
     padding: 24,
     borderWidth: 1,
